@@ -12,60 +12,48 @@ if ($Timer.IsPastDue) {
 # Write an information log with the current time.
 Write-Host "PowerShell timer trigger function ran! TIME: $currentUTCtime"
 
-
-function Get-PublishProfile($slotname, $webapp, $resourcegroupname){
-    if($slotname -eq ""){
-        return [xml]$pub_profile = Get-AzWebAppPublishingProfile -Name $webapp -ResourceGroupName $resourcegroupname
-    }else{
-        return [xml]$pub_profile = Get-AzWebAppSlotPublishingProfile -Name $webapp -Slot $slotname -ResourceGroupName $resourcegroupname
+$webapps = Get-AzWebApp; 
+#Get all apps in plan
+foreach($app in $webapps){
+    $webappName = $app.Name;
+    Write-Host "Removing Log Files from AppName: $webappName";
+    $slots = Get-AzWebAppSlot -ResourceGroupName $app.ResourceGroup -Name $app.Name;
+    #Get all slots for App
+    foreach($slot in $slots){
+        $slotName = $slot.Name;
+        Write-Host "Getting Publish Profile for $slotName";
+        [xml]$pub_profile = Get-AzWebAppSlotPublishingProfile -Name $app.Name -Slot $slotName -ResourceGroupName $app.ResourceGroup
+        $_profile = $pub_profile.publishData.publishProfile | Where-Object publishMethod -eq "ZipDeploy"
+        $password = ConvertTo-SecureString –String $_profile.userPWD -AsPlainText -Force
+        $credential = New-Object –TypeName "System.Management.Automation.PSCredential" -ArgumentList $_profile.userName, $password
+        $base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f $_profile.userName,$password)))
+        
+        Write-Host "Removing Log Files from slot: $slotName";
+        $apiUrl = "https://$webappName-$slotname.scm.azurewebsites.net/api/command"
+        $apiCommand = @{
+            command = 'powershell.exe -command "Remove-Item -path d:\\home\\LogFiles\\* -recurse"'
+            dir='d:\\home\\LogFiles'
+        }
+        Write-Host "Sending Command to $apiUrl";
+        $response = Invoke-RestMethod -Method 'POST' -Uri $apiUrl -Headers @{Authorization = "Basic $base64AuthInfo" }`
+        -Credential $credential -ContentType "application/json" -Body (ConvertTo-Json $apiCommand) -Verbose;
+        Write-Host $response;
     }
-}
 
-function Remove-KuduLogFiles($slotname, $appName, $pub_profile){
-    if ($slotname -eq ""){
-        $apiUrl = "https://$appName.scm.azurewebsites.net/api/command"
-    }else{
-        $apiUrl = "https://$appName`-$slotname.scm.azurewebsites.net/api/command"
-    }
-
+    Write-Host "Getting Publish Profile for $webappName";
+    [xml]$pub_profile = Get-AzWebAppPublishingProfile -Name $app.Name -ResourceGroupName $app.ResourceGroup
     $_profile = $pub_profile.publishData.publishProfile | Where-Object publishMethod -eq "ZipDeploy"
     $password = ConvertTo-SecureString –String $_profile.userPWD -AsPlainText -Force
     $credential = New-Object –TypeName "System.Management.Automation.PSCredential" -ArgumentList $_profile.userName, $password
     $base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f $_profile.userName,$password)))
 
+    $apiUrl = "https://$webappName.scm.azurewebsites.net/api/command";
     $apiCommand = @{
         command = 'powershell.exe -command "Remove-Item -path d:\\home\\LogFiles\\* -recurse"'
         dir='d:\\home\\LogFiles'
     }
-    Invoke-RestMethod -Method 'POST' -Uri $apiUrl -Headers @{Authorization = "Basic $base64AuthInfo" }`
+    Write-Host "Sending Command to $apiUrl";
+    $response = Invoke-RestMethod -Method 'POST' -Uri $apiUrl -Headers @{Authorization = "Basic $base64AuthInfo" }`
      -Credential $credential -ContentType "application/json" -Body (ConvertTo-Json $apiCommand) -Verbose;
-    
-}
-
-$appserviceplans = Get-AzAppServicePlan; 
-#Get all plans as an array
-$webapps = Get-AzWebApp;
-#Get all apps as an array
-#ect...
-
-
-
-
-foreach($plan in $appserviceplans){
-    $webapps = (Get-AzWebApp -ResourceGroupName $plan.ResourceGroup | Where-Object {$_.ServerFarmId -ilike "*$plan"}).Name; 
-    #Get all apps in plan
-    foreach($app in $webapps){
-        $webappName = $app.Name;
-        Write-Host "Removing Log Files from AppName: $webappName";
-        $slots = Get-AzWebAppSlot -ResourceGroupName $plan.ResourceGroup -Name $app.Name;
-        #Get all slots for App
-        foreach($slot in $slots){
-            $slotName = $slot.Name;
-            Write-Host "Removing Log Files from slot: $slotName";
-            $_pub_profile = Get-PublishProfile($slot.Name, $app, $plan.ResourceGroup);
-            Remove-KuduLogFiles($slot.Name, $app.Name, $_pub_profile);
-        }
-        $_pub_profile = Get-PublishProfile("", $app.Name, $plan.ResourceGroup);
-        Remove-KuduLogFiles("",$app.Name, $_pub_profile);
-    }
+    Write-Host $response;
 }
