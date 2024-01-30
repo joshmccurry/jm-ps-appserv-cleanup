@@ -20,7 +20,7 @@ foreach($app in $webapps){
     $slots = Get-AzWebAppSlot -ResourceGroupName $app.ResourceGroup -Name $app.Name;
     #Get all slots for App
     foreach($slot in $slots){
-        $slotName = $slot.Name;
+        $slotName = ($slot.Name -split '/')[1];
         Write-Host "Getting Publish Profile for $slotName";
         [xml]$pub_profile = Get-AzWebAppSlotPublishingProfile -Name $app.Name -Slot $slotName -ResourceGroupName $app.ResourceGroup
         $_profile = $pub_profile.publishData.publishProfile | Where-Object publishMethod -eq "ZipDeploy"
@@ -49,8 +49,8 @@ foreach($app in $webapps){
 
     $apiUrl = "https://$webappName.scm.azurewebsites.net/api/command";
     $apiCommand = @{
-        command = 'powershell.exe -command "Remove-Item -path d:\\home\\LogFiles\\* -recurse"'
-        dir='d:\\home\\LogFiles'
+        command = 'powershell.exe -command "Get-ChildItem -Path d:\\home\\LogFiles\\Application\\* -Recurse -File | Where LastWriteTime  -lt  (Get-Date).AddDays(-$DaysToKeepLogsAround) | Remove-Item -Force"'
+        dir='d:\\home\\LogFiles\\Application'
     }
     Write-Host "Sending Command to $apiUrl";
     $response = Invoke-RestMethod -Method 'POST' -Uri $apiUrl -Headers @{Authorization = "Basic $base64AuthInfo" }`
