@@ -44,13 +44,24 @@ function Remove-KuduLogFiles($slotname, $appName, $pub_profile){
 
 $appserviceplans = Get-AzAppServicePlan; 
 #Get all plans as an array
+$webapps = Get-AzWebApp;
+#Get all apps as an array
+#ect...
+
+
+
+
 foreach($plan in $appserviceplans){
     $webapps = (Get-AzWebApp -ResourceGroupName $plan.ResourceGroup | Where-Object {$_.ServerFarmId -ilike "*$plan"}).Name; 
     #Get all apps in plan
     foreach($app in $webapps){
+        $webappName = $app.Name;
+        Write-Host "Removing Log Files from AppName: $webappName";
         $slots = Get-AzWebAppSlot -ResourceGroupName $plan.ResourceGroup -Name $app.Name;
         #Get all slots for App
         foreach($slot in $slots){
+            $slotName = $slot.Name;
+            Write-Host "Removing Log Files from slot: $slotName";
             $_pub_profile = Get-PublishProfile($slot.Name, $app, $plan.ResourceGroup);
             Remove-KuduLogFiles($slot.Name, $app.Name, $_pub_profile);
         }
