@@ -49,7 +49,7 @@ foreach($app in $webapps){
 
     $apiUrl = "https://$webappName.scm.azurewebsites.net/api/command";
     $apiCommand = @{
-        command = 'powershell.exe -command "Get-ChildItem -Path d:\\home\\LogFiles\\Application\\* -Recurse -File | Where LastWriteTime  -lt  (Get-Date).AddDays(-$DaysToKeepLogsAround) | Remove-Item -Force"'
+        command = 'powershell.exe -command "Get-ChildItem -Path d:\\home\\LogFiles\\Application\\* -Recurse -File | Where LastWriteTime  -lt  (Get-Date).AddDays(-60) | Remove-Item -Force"'
         dir='d:\\home\\LogFiles\\Application'
     }
     Write-Host "Sending Command to $apiUrl";
