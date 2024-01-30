@@ -31,7 +31,7 @@ foreach($app in $webapps){
         Write-Host "Removing Log Files from slot: $slotName";
         $apiUrl = "https://$webappName-$slotname.scm.azurewebsites.net/api/command"
         $apiCommand = @{
-            command = 'powershell.exe -command "Remove-Item -path d:\\home\\LogFiles\\* -recurse"'
+            command = 'powershell.exe -command "Get-ChildItem -Path d:\\home\\LogFiles\\Application\\* -Recurse -File | Where LastWriteTime  -lt  (Get-Date).AddDays(-60) | Remove-Item -Force"'
             dir='d:\\home\\LogFiles'
         }
         Write-Host "Sending Command to $apiUrl";
